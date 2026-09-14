@@ -2,27 +2,15 @@
 
 Add [NeuralTrust TrustGuard](https://neuraltrust.ai) evaluation to Haystack text and chat pipelines. Screen user input before a model runs, or inspect completed assistant replies before returning them to your application.
 
-**Development preview.** Source is maintained in the private [NeuralTrust/neuraltrust-haystack repository](https://github.com/NeuralTrust/neuraltrust-haystack). The `neuraltrust-haystack` package has not been published to PyPI yet.
-
 ## Installation
 
 Requires Python 3.10+ and Haystack 2.31 or 3.x (`haystack-ai>=2.31.0,<4`).
 
-With repository access, install from a checkout:
-
 ```bash
-git clone https://github.com/NeuralTrust/neuraltrust-haystack.git
-cd neuraltrust-haystack
-python -m pip install -e .
+pip install neuraltrust-haystack
 ```
 
-For development with [uv](https://docs.astral.sh/uv/):
-
-```bash
-uv sync --group dev
-```
-
-After a public release, installation will be `pip install neuraltrust-haystack`. That command is not the installation route for this unpublished preview.
+For installation from source and development checks, see the [contributing guide](https://github.com/NeuralTrust/neuraltrust-haystack/blob/main/CONTRIBUTING.md).
 
 ## Connect to TrustGuard
 
@@ -99,7 +87,7 @@ with NeuralTrustGuard(on_violation="route") as guard:
 
 On `block` or `ask`, the guard emits only `verdict`. The required `accept.text` input receives no value, so that component does not run. The guard omits the passing socket entirely: emitting an empty string or empty list would still supply a value to a downstream component. Keep guarded content connected through the guard's output, and use required inputs for the protected downstream step.
 
-The [text example](examples/text_pipeline.py) runs this pattern from the command line:
+From a source checkout, the [text example](https://github.com/NeuralTrust/neuraltrust-haystack/blob/main/examples/text_pipeline.py) runs this pattern from the command line:
 
 ```bash
 uv run python examples/text_pipeline.py "What is the capital of France?"
@@ -117,7 +105,7 @@ with NeuralTrustChatGuard(direction="output") as guard:
     print(result["messages"][0].text)
 ```
 
-Connect `chat_generator.replies` to `guard.messages` to evaluate completed generator replies. The [chat example](examples/chat_pipeline.py) uses a local component that produces a fixed assistant reply:
+Connect `chat_generator.replies` to `guard.messages` to evaluate completed generator replies. In a source checkout, the [chat example](https://github.com/NeuralTrust/neuraltrust-haystack/blob/main/examples/chat_pipeline.py) uses a local component that produces a fixed assistant reply:
 
 ```bash
 uv run python examples/chat_pipeline.py
@@ -222,13 +210,13 @@ Environment-based Secrets serialize the variable name, never its resolved value.
 
 ## Scope
 
-- Text and text-only chat are supported. Document batches, tools, multimodal data, and native Agent lifecycle hooks are outside this release's component contract.
+- Text and text-only chat are supported. Document batches, tools, multimodal data, and native Agent lifecycle hooks are outside the components' supported interface.
 - A guard before/after an Agent covers its pipeline input/output. It does not intercept the Agent's internal model calls or tool actions.
 - Output evaluation happens after a completed reply. Tokens already delivered through a streaming callback cannot be withheld by a later pipeline component. Buffer replies when they must pass evaluation before delivery.
 - Detection and transformation depend on the collector policy, its direction, and the TrustGuard service. Local validation does not establish detection accuracy for every policy or input.
 
-See the [Haystack integration guide](https://docs.neuraltrust.ai/integrations/haystack) for the public usage guide and [CONTRIBUTING.md](CONTRIBUTING.md) for development checks. The guide is maintained in [NeuralTrust/docs](https://github.com/NeuralTrust/docs).
+See the [Haystack integration guide](https://docs.neuraltrust.ai/integrations/haystack) for usage documentation and the [contributing guide](https://github.com/NeuralTrust/neuraltrust-haystack/blob/main/CONTRIBUTING.md) for development checks.
 
 ## License
 
-This package is distributed under the [MIT License](LICENSE).
+This package is distributed under the [MIT License](https://github.com/NeuralTrust/neuraltrust-haystack/blob/main/LICENSE).
