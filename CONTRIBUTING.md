@@ -103,6 +103,8 @@ Update public examples and the changelog when changing behavior. Maintain the [H
 
 CI uses pinned `NeuralTrust/workflows` jobs for linting, the Python/Haystack test matrix, Bandit/dependency auditing and PR metadata validation. Package builds additionally check both distribution metadata and the embedded runtime version. The shared security workflow controls the enforcement policy of its scanners.
 
+Full CI runs on pull requests and pushes to `main`. The shared Python workflow runs lint once and tests all ten Python/Haystack combinations sequentially in isolated environments, with a results table in the job summary. Every combination is attempted, and any failure fails the check. PR title and description edits run only metadata validation. Development publication performs its own tests on pushes to `develop`.
+
 The repository uses `main` as the default release branch and `develop` for development packages:
 
 | Trigger | Workflow | Result |
