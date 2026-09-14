@@ -23,10 +23,33 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  release_permissions:
+    name: Verify release token against effective branch rules
     if: >-
-      github.ref_name == github.event.repository.default_branch &&
-      ((github.event_name == 'workflow_dispatch' && inputs.dry_run) || vars.RELEASE_ENABLED == 'true')
+      (github.event_name == 'workflow_dispatch' && inputs.dry_run) ||
+      (github.ref_name == github.event.repository.default_branch && vars.RELEASE_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Check the release PAT without attempting a write
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          RELEASE_BRANCH: ${{ github.event.repository.default_branch }}
+        run: python scripts/check_release_permissions.py "$GITHUB_REPOSITORY" "$RELEASE_BRANCH"
+
+  release:
+    needs: release_permissions
+    if: >-
+      github.ref_name == github.event.repository.default_branch ||
+      (github.event_name == 'workflow_dispatch' && inputs.dry_run)
     uses: NeuralTrust/workflows/.github/workflows/ai-release-bump.yml@ab9c0eda7ab13a6a7df5d04ecc048651c46c18cf
     with:
       dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}

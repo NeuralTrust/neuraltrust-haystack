@@ -1,14 +1,18 @@
 # Contributing
 
-This checkout contains the local development preview of `neuraltrust-haystack`. Repository creation, PyPI publishing, and the Haystack registry submission are separate release steps.
+Development takes place in the [NeuralTrust/neuraltrust-haystack repository](https://github.com/NeuralTrust/neuraltrust-haystack). Open feature pull requests against `develop`; `main` is the release branch.
 
 ## Environment
 
-Use Python **3.12** for the development environment. The package runtime supports Python 3.10+, while the type-checking configuration uses Python 3.12 to parse the current NumPy dependency stubs. Runtime compatibility is checked separately across Python 3.10–3.14 and both supported Haystack major versions. From the project root:
+Use Python **3.12** for the development environment. The package runtime supports Python 3.10+, while the type-checking configuration uses Python 3.12 to parse the NumPy dependency stubs. Runtime compatibility is checked separately across Python 3.10–3.14 and both supported Haystack major versions. Clone the repository and install with [uv](https://docs.astral.sh/uv/):
 
 ```bash
+git clone https://github.com/NeuralTrust/neuraltrust-haystack.git
+cd neuraltrust-haystack
 uv sync --python 3.12 --group dev
 ```
+
+For an editable installation with pip, run `python -m pip install -e .` from the checkout.
 
 The package follows Haystack's component and namespace conventions, uses Hatchling for distribution builds, and keeps source under `src/haystack_integrations/components/guardrails/neuraltrust`.
 
