@@ -40,8 +40,9 @@ def test_pull_request_rule_requires_unconditional_bypass(monkeypatch, bypass):
         release["verify"]("NeuralTrust/neuraltrust-haystack", "main")
 
 
-def test_release_pat_with_effective_bypass_passes(monkeypatch):
-    calls = fake_api(monkeypatch, bypass="always")
+@pytest.mark.parametrize("bypass", ["always", "exempt"])
+def test_release_pat_with_effective_bypass_passes(monkeypatch, bypass):
+    calls = fake_api(monkeypatch, bypass=bypass)
     result = release["verify"]("NeuralTrust/neuraltrust-haystack", "main")
     assert "release-bot" in result
     assert "No write was attempted" in result

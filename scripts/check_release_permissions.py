@@ -78,12 +78,16 @@ def verify(repository: str, branch: str) -> str:
             raise PermissionCheckError("UNVERIFIED: branch rules changed during the check; rerun the preflight")
         bypass = ruleset.get("current_user_can_bypass")
         restrictions = types - NON_BLOCKING_RULES
-        if restrictions and bypass != "always":
+        # GitHub's exempt mode means rules do not apply to this actor at all;
+        # like always, it permits direct pushes. PR-only bypass does not.
+        if restrictions and bypass not in {"always", "exempt"}:
             state = "BLOCKED" if restrictions & {"pull_request", "update"} and bypass is not None else "UNVERIFIED"
             failures.append(
                 f"ruleset {ruleset_id}: {', '.join(sorted(restrictions))}; token bypass={bypass or 'unknown'}"
             )
             print(f"{state}: {failures[-1]}")
+        elif restrictions:
+            print(f"Verified release token bypass for ruleset {ruleset_id}: {bypass}.")
     if failures:
         raise PermissionCheckError(
             f"Release token {principal} cannot be confirmed for a direct push to {branch}: " + "; ".join(failures)
