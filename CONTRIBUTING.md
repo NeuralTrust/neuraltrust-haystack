@@ -1,6 +1,6 @@
 # Contributing
 
-This checkout contains the local development preview of `neuraltrust-haystack`. Repository creation, PyPI publishing, and the Haystack registry submission are separate release steps.
+Development takes place in the private [NeuralTrust/neuraltrust-haystack repository](https://github.com/NeuralTrust/neuraltrust-haystack). Open feature pull requests against `develop`; `main` is the release branch. The package is not yet published to PyPI, and the Haystack registry submission remains a separate release step.
 
 ## Environment
 

@@ -2,15 +2,17 @@
 
 Add [NeuralTrust TrustGuard](https://neuraltrust.ai) evaluation to Haystack text and chat pipelines. Screen user input before a model runs, or inspect completed assistant replies before returning them to your application.
 
-**Local development preview.** The intended repository is `NeuralTrust/neuraltrust-haystack` and the intended PyPI distribution is `neuraltrust-haystack`. Neither is published by this checkout.
+**Development preview.** Source is maintained in the private [NeuralTrust/neuraltrust-haystack repository](https://github.com/NeuralTrust/neuraltrust-haystack). The `neuraltrust-haystack` package has not been published to PyPI yet.
 
 ## Installation
 
 Requires Python 3.10+ and Haystack 2.31 or 3.x (`haystack-ai>=2.31.0,<4`).
 
-From this local checkout:
+With repository access, install from a checkout:
 
 ```bash
+git clone https://github.com/NeuralTrust/neuraltrust-haystack.git
+cd neuraltrust-haystack
 python -m pip install -e .
 ```
 
