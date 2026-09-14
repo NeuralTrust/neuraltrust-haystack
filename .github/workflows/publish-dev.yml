@@ -1,0 +1,128 @@
+# Matches NeuralTrust's GCP WIF publishing flow. The shared python-publish.yml
+# has no version/pre-build input, so it cannot create a unique develop artifact.
+name: Publish Dev
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish to the private development registry (requires DEV_PUBLISH_ENABLED=true)
+        type: boolean
+        default: false
+      verify_auth:
+        description: Verify GCP authentication and registry upload permission without publishing
+        type: boolean
+        default: false
+  push:
+    branches: [develop]
+    paths-ignore:
+      - ".github/**"
+      - "README.md"
+      - "CONTRIBUTING.md"
+
+concurrency:
+  group: publish-dev-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Verify development package and optionally publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HAYSTACK_TELEMETRY_ENABLED: "false"
+      HAYSTACK_CONTENT_TRACING_ENABLED: "false"
+      PUBLISH_REQUESTED: ${{ (github.event_name == 'push' && vars.DEV_PUBLISH_ENABLED == 'true') || inputs.publish }}
+      VERIFY_AUTH: ${{ inputs.verify_auth || inputs.publish || (github.event_name == 'push' && vars.DEV_PUBLISH_ENABLED == 'true') }}
+      DEV_PUBLISH_ENABLED: ${{ vars.DEV_PUBLISH_ENABLED }}
+      DEV_GCP_PROJECT_ID: ${{ vars.DEV_GCP_PROJECT_ID }}
+    steps:
+      - name: Validate requested publishing mode
+        run: |
+          if [ "$PUBLISH_REQUESTED" = "true" ] && [ "$DEV_PUBLISH_ENABLED" != "true" ]; then
+            echo "::error::Set DEV_PUBLISH_ENABLED=true only after configuring the private registry publisher."
+            exit 1
+          fi
+          if [ "$VERIFY_AUTH" = "true" ]; then
+            if [ "$GITHUB_REF" != "refs/heads/develop" ]; then
+              echo "::error::Run registry authentication and publishing from the develop branch."
+              exit 1
+            fi
+            if [ -z "$DEV_GCP_PROJECT_ID" ]; then
+              echo "::error::Configure DEV_GCP_PROJECT_ID before verifying registry access."
+              exit 1
+            fi
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.13"
+      - name: Set unique development version in the build checkout
+        run: python scripts/release_version.py dev --run-number "$GITHUB_RUN_NUMBER" --run-attempt "$GITHUB_RUN_ATTEMPT"
+      - run: uv sync --locked --all-groups
+      - run: uv run --no-sync pytest -m "not live"
+      - run: uv build
+      - run: uv run --no-sync twine check dist/*
+      - run: python scripts/release_version.py check --dist dist
+      - name: Save verified development artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: development-distributions
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+      - name: Authenticate to the development Artifact Registry
+        id: auth
+        if: env.VERIFY_AUTH == 'true'
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.DEV_WIF_PROVIDER }}
+          service_account: ${{ secrets.DEV_WIF_SERVICE_ACCOUNT }}
+          token_format: access_token
+          create_credentials_file: false
+      - name: Verify upload permission without uploading
+        if: env.VERIFY_AUTH == 'true'
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          curl --fail --silent --show-error \
+            -X POST \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data '{"permissions":["artifactregistry.repositories.uploadArtifacts"]}' \
+            "https://artifactregistry.googleapis.com/v1/projects/${DEV_GCP_PROJECT_ID}/locations/europe-west1/repositories/nt-python:testIamPermissions" \
+            > "$RUNNER_TEMP/registry-permissions.json"
+          jq -e '.permissions | index("artifactregistry.repositories.uploadArtifacts") != null' \
+            "$RUNNER_TEMP/registry-permissions.json" > /dev/null
+      - name: Publish development artifacts
+        if: env.PUBLISH_REQUESTED == 'true'
+        env:
+          UV_PUBLISH_USERNAME: oauth2accesstoken
+          UV_PUBLISH_PASSWORD: ${{ steps.auth.outputs.access_token }}
+          UV_PUBLISH_URL: https://europe-west1-python.pkg.dev/${{ vars.DEV_GCP_PROJECT_ID }}/nt-python/
+        run: uv publish
+      - name: Development verification summary
+        run: |
+          {
+            echo "## Development package verification passed"
+            echo "Tests, wheel/sdist metadata, and the unique development version passed."
+            if [ "$VERIFY_AUTH" = "true" ]; then
+              echo "GCP workload identity and registry upload permission verified."
+            else
+              echo "Registry authentication was not requested or tested."
+            fi
+            if [ "$PUBLISH_REQUESTED" = "true" ]; then
+              echo "Development artifacts were uploaded to the private registry."
+            else
+              echo "No package was published."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

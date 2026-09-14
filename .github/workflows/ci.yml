@@ -1,0 +1,99 @@
+# Shared Python CI follows langchain-neuraltrust; reusable jobs are pinned.
+name: CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+    types: [opened, reopened, synchronize, edited]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    if: github.event.action != 'edited'
+    permissions:
+      contents: read
+      id-token: write # Required by the reusable Python job.
+    uses: NeuralTrust/workflows/.github/workflows/tests.yml@ab9c0eda7ab13a6a7df5d04ecc048651c46c18cf
+    with:
+      language: python
+      language_version: "3.12"
+      test_enabled: false
+      uv_sync_args: --locked --all-groups
+      lint_command: |
+        uv run --no-sync ruff check .
+        uv run --no-sync ruff format --check .
+        uv run --no-sync mypy src
+
+  security:
+    if: github.event.action != 'edited'
+    permissions:
+      contents: read
+      pull-requests: write # Shared Trivy findings comment, as in the other integrations.
+    uses: NeuralTrust/workflows/.github/workflows/sast.yml@ab9c0eda7ab13a6a7df5d04ecc048651c46c18cf
+    with:
+      bandit_enabled: true
+      bandit_path: src
+      pip_audit_enabled: true
+
+  compatibility:
+    name: Python ${{ matrix.python }} / Haystack ${{ matrix.haystack }}
+    if: github.event.action != 'edited'
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        haystack: ["2.31.0", "3.1.1"]
+    uses: NeuralTrust/workflows/.github/workflows/tests.yml@ab9c0eda7ab13a6a7df5d04ecc048651c46c18cf
+    with:
+      language: python
+      language_version: ${{ matrix.python }}
+      lint_enabled: false
+      uv_sync_args: --locked --all-groups
+      setup_commands: |
+        uv pip install --python .venv/bin/python "haystack-ai==${{ matrix.haystack }}"
+        uv pip check --python .venv/bin/python
+      # --no-sync preserves the compatibility override. Caller env does not
+      # propagate to reusable workflows, so set telemetry flags in the command.
+      test_command: >-
+        HAYSTACK_TELEMETRY_ENABLED=false HAYSTACK_CONTENT_TRACING_ENABLED=false
+        uv run --no-sync pytest -m "not live"
+
+  package:
+    name: Package build and metadata
+    if: github.event.action != 'edited'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.13"
+          enable-cache: true
+      - run: uv sync --locked --all-groups
+      - run: uv build
+      - run: uv run --no-sync twine check dist/*
+      - run: python scripts/release_version.py check --dist dist
+
+  pr_metadata_validation:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: NeuralTrust/workflows/.github/workflows/pr-metadata.yml@ab9c0eda7ab13a6a7df5d04ecc048651c46c18cf

@@ -1,0 +1,23 @@
+.venv*/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage*
+coverage.xml
+htmlcov/
+dist/
+build/
+*.egg-info/
+.env
+.env.*
+!.env.example
+.creds.json
+*credentials*.json
+.local/
+.DS_Store
+
+# Integration guides live in NeuralTrust/docs; local research/drafts stay ignored.
+/docs/
+/integrations/
