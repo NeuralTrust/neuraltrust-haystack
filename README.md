@@ -2,6 +2,8 @@
 
 Add [NeuralTrust TrustGuard](https://neuraltrust.ai) evaluation to Haystack text and chat pipelines. Screen user input before a model runs, or inspect completed assistant replies before returning them to your application.
 
+Read the [official Haystack integration guide](https://docs.neuraltrust.ai/integrations/haystack) for setup and usage documentation.
+
 ## Installation
 
 Requires Python 3.10+ and Haystack 2.31 or 3.x (`haystack-ai>=2.31.0,<4`).
