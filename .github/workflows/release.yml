@@ -60,13 +60,13 @@ jobs:
             else
               echo "Verified the selected ref without requiring a release tag."
             fi
-            echo "PyPI upload runs separately, only for a published release when PYPI_PUBLISH_ENABLED=true."
+            echo "PyPI upload runs separately for every published GitHub release; manual verification does not publish."
           } >> "$GITHUB_STEP_SUMMARY"
 
   publish:
     name: Publish verified artifacts to PyPI
     needs: verify
-    if: github.event_name == 'release' && vars.PYPI_PUBLISH_ENABLED == 'true'
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

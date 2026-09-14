@@ -23,11 +23,65 @@ permissions:
   contents: write
 
 jobs:
+  release_policy:
+    name: Determine whether to start a release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      should_run: ${{ steps.policy.outputs.should_run }}
+    steps:
+      - name: Allow explicit release requests or an established release history
+        id: policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ "$DRY_RUN" != "true" ] && [ "$REF_NAME" != "$DEFAULT_BRANCH" ]; then
+              echo "::error::Create releases only from the repository default branch."
+              exit 1
+            fi
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "Explicit manual release request; no existing release is required." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ "$EVENT_NAME" != "push" ]; then
+            echo "::error::Unsupported auto-release event."
+            exit 1
+          fi
+          if [ "$REF_NAME" != "$DEFAULT_BRANCH" ]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "Automatic releases run only from the default branch." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # A failed API request must fail this job, never look like empty history.
+          gh api --method GET --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/releases?per_page=100" > "$RUNNER_TEMP/release-history.json"
+          HAS_RELEASE=$(jq -r 'any(.[][];
+            .draft == false and .prerelease == false and .published_at != null and
+            (.tag_name | test("^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"))
+          )' "$RUNNER_TEMP/release-history.json")
+          echo "should_run=$HAS_RELEASE" >> "$GITHUB_OUTPUT"
+          if [ "$HAS_RELEASE" = "true" ]; then
+            echo "A published stable release exists; automatic release processing can start." >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "Automatic releases start after the first published stable GitHub release."
+              echo "Publish the initial release manually, or dispatch Auto Release with dry_run=false on the default branch."
+              echo "No release will be created by this push."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   release_permissions:
     name: Verify release token against effective branch rules
-    if: >-
-      (github.event_name == 'workflow_dispatch' && inputs.dry_run) ||
-      (github.ref_name == github.event.repository.default_branch && vars.RELEASE_ENABLED == 'true')
+    needs: release_policy
+    if: needs.release_policy.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

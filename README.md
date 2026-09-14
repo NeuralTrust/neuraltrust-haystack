@@ -219,6 +219,8 @@ Environment-based Secrets serialize the variable name, never its resolved value.
 
 See the [Haystack integration guide](https://docs.neuraltrust.ai/integrations/haystack) for usage documentation and the [contributing guide](https://github.com/NeuralTrust/neuraltrust-haystack/blob/main/CONTRIBUTING.md) for development checks.
 
+Release history is recorded in the [changelog](https://github.com/NeuralTrust/neuraltrust-haystack/blob/main/CHANGELOG.md).
+
 ## License
 
 This package is distributed under the [MIT License](https://github.com/NeuralTrust/neuraltrust-haystack/blob/main/LICENSE).
