@@ -10,7 +10,8 @@ on:
     types: [opened, reopened, synchronize, edited]
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # Editing PR metadata must not cancel the full validation of its code.
+  group: ci-${{ github.ref }}-${{ github.event.action == 'edited' && 'metadata' || 'code' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
