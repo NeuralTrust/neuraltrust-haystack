@@ -4,10 +4,10 @@ name: CI
 on:
   workflow_dispatch:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
     branches: [main, develop]
-    types: [opened, reopened, synchronize, edited]
+    types: [opened, reopened, synchronize]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -17,8 +17,8 @@ permissions:
   contents: read
 
 jobs:
-  lint:
-    if: github.event.action != 'edited'
+  python:
+    name: Python
     permissions:
       contents: read
       id-token: write # Required by the reusable Python job.
@@ -26,15 +26,44 @@ jobs:
     with:
       language: python
       language_version: "3.12"
-      test_enabled: false
       uv_sync_args: --locked --all-groups
       lint_command: |
         uv run --no-sync ruff check .
         uv run --no-sync ruff format --check .
         uv run --no-sync mypy src
+      # One shared call runs lint once and reports all ten test combinations.
+      # Disabling a shared sibling job creates a skipped check for every call.
+      test_command: |
+        export HAYSTACK_TELEMETRY_ENABLED=false
+        export HAYSTACK_CONTENT_TRACING_ENABLED=false
+        {
+          echo "## Python / Haystack compatibility"
+          echo ""
+          echo "| Python | Haystack | Result |"
+          echo "| --- | --- | --- |"
+        } >> "$GITHUB_STEP_SUMMARY"
+        failed=0
+        for python_version in 3.10 3.11 3.12 3.13 3.14; do
+          for haystack_version in 2.31.0 3.1.1; do
+            echo "::group::Python $python_version / Haystack $haystack_version"
+            export UV_PROJECT_ENVIRONMENT="$RUNNER_TEMP/haystack-$python_version-$haystack_version"
+            if uv sync --python "$python_version" --locked --all-groups &&
+               uv pip install --python "$UV_PROJECT_ENVIRONMENT/bin/python" "haystack-ai==$haystack_version" &&
+               uv pip check --python "$UV_PROJECT_ENVIRONMENT/bin/python" &&
+               "$UV_PROJECT_ENVIRONMENT/bin/python" -m pytest -m "not live"; then
+              result=PASS
+            else
+              result=FAIL
+              failed=1
+              echo "::error::Python $python_version / Haystack $haystack_version failed"
+            fi
+            echo "| $python_version | $haystack_version | $result |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::endgroup::"
+          done
+        done
+        exit "$failed"
 
   security:
-    if: github.event.action != 'edited'
     permissions:
       contents: read
       pull-requests: write # Shared Trivy findings comment, as in the other integrations.
@@ -44,35 +73,8 @@ jobs:
       bandit_path: src
       pip_audit_enabled: true
 
-  compatibility:
-    name: Python ${{ matrix.python }} / Haystack ${{ matrix.haystack }}
-    if: github.event.action != 'edited'
-    permissions:
-      contents: read
-      id-token: write
-    strategy:
-      fail-fast: false
-      matrix:
-        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
-        haystack: ["2.31.0", "3.1.1"]
-    uses: NeuralTrust/workflows/.github/workflows/tests.yml@ab9c0eda7ab13a6a7df5d04ecc048651c46c18cf
-    with:
-      language: python
-      language_version: ${{ matrix.python }}
-      lint_enabled: false
-      uv_sync_args: --locked --all-groups
-      setup_commands: |
-        uv pip install --python .venv/bin/python "haystack-ai==${{ matrix.haystack }}"
-        uv pip check --python .venv/bin/python
-      # --no-sync preserves the compatibility override. Caller env does not
-      # propagate to reusable workflows, so set telemetry flags in the command.
-      test_command: >-
-        HAYSTACK_TELEMETRY_ENABLED=false HAYSTACK_CONTENT_TRACING_ENABLED=false
-        uv run --no-sync pytest -m "not live"
-
   package:
     name: Package build and metadata
-    if: github.event.action != 'edited'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -90,10 +92,3 @@ jobs:
       - run: uv build
       - run: uv run --no-sync twine check dist/*
       - run: python scripts/release_version.py check --dist dist
-
-  pr_metadata_validation:
-    if: github.event_name == 'pull_request'
-    permissions:
-      contents: read
-      pull-requests: read
-    uses: NeuralTrust/workflows/.github/workflows/pr-metadata.yml@ab9c0eda7ab13a6a7df5d04ecc048651c46c18cf

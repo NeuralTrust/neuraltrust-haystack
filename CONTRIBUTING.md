@@ -1,14 +1,18 @@
 # Contributing
 
-This checkout contains the local development preview of `neuraltrust-haystack`. Repository creation, PyPI publishing, and the Haystack registry submission are separate release steps.
+Development takes place in the [NeuralTrust/neuraltrust-haystack repository](https://github.com/NeuralTrust/neuraltrust-haystack). Open feature pull requests against `develop`; `main` is the release branch.
 
 ## Environment
 
-Use Python **3.12** for the development environment. The package runtime supports Python 3.10+, while the type-checking configuration uses Python 3.12 to parse the current NumPy dependency stubs. Runtime compatibility is checked separately across Python 3.10–3.14 and both supported Haystack major versions. From the project root:
+Use Python **3.12** for the development environment. The package runtime supports Python 3.10+, while the type-checking configuration uses Python 3.12 to parse the NumPy dependency stubs. Runtime compatibility is checked separately across Python 3.10–3.14 and both supported Haystack major versions. Clone the repository and install with [uv](https://docs.astral.sh/uv/):
 
 ```bash
+git clone https://github.com/NeuralTrust/neuraltrust-haystack.git
+cd neuraltrust-haystack
 uv sync --python 3.12 --group dev
 ```
+
+For an editable installation with pip, run `python -m pip install -e .` from the checkout.
 
 The package follows Haystack's component and namespace conventions, uses Hatchling for distribution builds, and keeps source under `src/haystack_integrations/components/guardrails/neuraltrust`.
 
@@ -94,18 +98,22 @@ Inspect both archives for unintended content and install the built wheel in a fr
 
 Update public examples and the changelog when changing behavior. Maintain the [Haystack integration guide](https://docs.neuraltrust.ai/integrations/haystack) in the separate [NeuralTrust/docs repository](https://github.com/NeuralTrust/docs), under `integrations/haystack.mdx`. Keep research, local validation evidence, internal handoff notes and upstream registry drafts outside package commits; `.local/` is ignored for local work.
 
+Include release notes for user-visible changes and significant development or release-workflow changes in each PR, under `## [Unreleased]` in `CHANGELOG.md`. For a manually prepared release, move those notes into `## [vX.Y.Z] — YYYY-MM-DD` and set the matching package version before merging. For automatically prepared releases, the shared workflow performs that promotion and leaves an empty Unreleased section for subsequent changes.
 
 ## CI and release automation
 
 CI uses pinned `NeuralTrust/workflows` jobs for linting, the Python/Haystack test matrix, Bandit/dependency auditing and PR metadata validation. Package builds additionally check both distribution metadata and the embedded runtime version. The shared security workflow controls the enforcement policy of its scanners.
 
+Full CI runs on pull requests and pushes to `main`. The shared Python workflow runs lint once and tests all ten Python/Haystack combinations sequentially in isolated environments, with a results table in the job summary. Every combination is attempted, and any failure fails the check. PR title and description edits run only metadata validation. Development publication performs its own tests on pushes to `develop`.
+
 The repository uses `main` as the default release branch and `develop` for development packages:
 
 | Trigger | Workflow | Result |
 | --- | --- | --- |
-| Push to `main` with `RELEASE_ENABLED=true` | `auto-release.yml` | The shared release workflow selects a semantic version, updates the changelog and version source, and creates a GitHub Release. |
+| Push to `main` after the first published stable release | `auto-release.yml` | The shared release workflow selects a semantic version, updates the changelog and version source, and creates a GitHub Release. |
 | Manual Auto Release, `dry_run=true` (default) | `auto-release.yml` | Calls the shared version classifier and validates its version update hook in a temporary checkout. Creates no commit, tag, or release. |
-| Published GitHub Release | `release.yml` | Checks the tag against the source and built artifacts and runs tests. Publishes the verified artifacts to PyPI only when `PYPI_PUBLISH_ENABLED=true`. |
+| Manual Auto Release on `main`, `dry_run=false` | `auto-release.yml` | Uses the shared workflow to create a versioned GitHub Release, including the initial release. |
+| Published GitHub Release | `release.yml` | Checks the tag against the source and built artifacts, runs tests, and automatically publishes the verified artifacts to PyPI using trusted publishing. |
 | Manual Release | `release.yml` | Runs the same tests, builds, and artifact checks without publishing. An optional existing `release_tag` also verifies tag/source agreement. |
 | Push to `develop` | `publish-dev.yml` | Stamps a unique development version in the build checkout, tests and checks it, and saves artifacts. Publishes to the development registry only when `DEV_PUBLISH_ENABLED=true`. |
 | Manual Publish Dev | `publish-dev.yml` | Defaults to building and checking without publishing. `verify_auth=true` also verifies workload identity and registry upload permission; `publish=true` requests private development publication and requires `DEV_PUBLISH_ENABLED=true`. |
@@ -114,13 +122,15 @@ Documentation-only changes to README/CONTRIBUTING and workflow-only changes do n
 
 The single version source is `src/haystack_integrations/components/guardrails/neuraltrust/_version.py`. Hatch reads it directly, so there is no duplicate project version to update in `pyproject.toml` or `uv.lock`. The shared release job invokes `python scripts/release_version.py set X.Y.Z`. Development builds use the next patch with a unique run number and attempt, for example `0.1.1.dev42+run.2`. These temporary stamps are not committed back to `develop`.
 
-Before enabling the flows for a new repository, configure:
+To publish a manually prepared version, merge its version and changelog changes into `main`, create the matching `vX.Y.Z` tag at that commit, and publish a GitHub Release for the tag. Publishing the release triggers PyPI automatically; creating a tag alone does not. The initial stable release is created explicitly, so merging the initial preparation does not publish a package. Subsequent pushes to `main` can create releases automatically through the shared workflow.
+
+For a new repository, configure:
 
 - Access for the repository to call the pinned `NeuralTrust/workflows` workflows.
 - `OPENAI_API_KEY` and `GH_TOKEN` for auto-release, with optional `SLACK_WEBHOOK_URL`. `GH_TOKEN` must be a PAT permitted to write release commits through the branch rules; the release event created with it triggers the publishing workflow.
 - The `pypi` GitHub environment and a PyPI trusted publisher for owner `NeuralTrust`, repository `neuraltrust-haystack`, workflow `release.yml`, environment `pypi`. No PyPI upload token is used.
 - `DEV_GCP_PROJECT_ID` as a repository/organization variable; `DEV_WIF_PROVIDER` and `DEV_WIF_SERVICE_ACCOUNT` as secrets. The workload-identity provider must trust this repository's `develop` ref, and the service account needs write access to `europe-west1/nt-python` in the configured project.
-- `RELEASE_ENABLED`, `PYPI_PUBLISH_ENABLED`, and `DEV_PUBLISH_ENABLED` are opt-in repository variables. An unset value disables the corresponding publication step. Enable each only after its publisher is configured and publication is intended.
+- `DEV_PUBLISH_ENABLED=true` enables publication to the private development registry. GitHub Releases publish to PyPI without an additional enable variable.
 
 Use these dispatches to verify the hosted workflows before publication:
 
@@ -132,4 +142,4 @@ gh workflow run publish-dev.yml --ref develop -f publish=false -f verify_auth=tr
 
 Run the development check with `verify_auth=false` while registry identity is unconfigured. That checks the package without claiming registry authentication was verified. The authentication check uses the [Artifact Registry permissions API](https://docs.cloud.google.com/artifact-registry/docs/reference/rest/v1/projects.locations.repositories/testIamPermissions); it checks upload permission without uploading a package. Inspect the shared auto-release logs for classification warnings: its fallback to a patch bump does not prove the OpenAI classifier succeeded.
 
-No credentials belong in workflow files. A successful release preflight proves the tested artifact build, not PyPI trusted-publisher registration or an upload. PyPI upload requires a published release event and its enable variable; manual Release dispatches cannot publish.
+No credentials belong in workflow files. A successful release preflight proves the tested artifact build, not PyPI trusted-publisher registration or an upload. A published GitHub Release triggers PyPI upload; manual Release dispatches only verify artifacts.

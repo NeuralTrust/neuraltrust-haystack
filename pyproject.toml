@@ -14,6 +14,7 @@ authors = [{ name = "NeuralTrust" }]
 keywords = ["haystack", "neuraltrust", "trustguard", "guardrails", "security"]
 classifiers = [
   "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -22,12 +23,14 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
   "Operating System :: OS Independent",
   "Topic :: Security",
+  "Typing :: Typed",
 ]
 dependencies = ["haystack-ai>=2.31.0,<4", "httpx>=0.27,<1"]
 
 [project.urls]
 Homepage = "https://neuraltrust.ai"
 Documentation = "https://docs.neuraltrust.ai/integrations/haystack"
+Changelog = "https://github.com/NeuralTrust/neuraltrust-haystack/blob/main/CHANGELOG.md"
 Repository = "https://github.com/NeuralTrust/neuraltrust-haystack"
 Issues = "https://github.com/NeuralTrust/neuraltrust-haystack/issues"
 
