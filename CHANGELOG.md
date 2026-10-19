@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [v0.1.1] — 2026-10-19
+
 ### Fixed
 
 - Accept TrustGuard status `skip` and forward the evaluated content unchanged, the same as `allow`, in both violation modes.
