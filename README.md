@@ -173,6 +173,7 @@ Configure policies in TrustGuard. These components do not accept a per-request p
 | TrustGuard status | Component behavior |
 | --- | --- |
 | `allow` | Forward original content. |
+| `skip` | Forward original content. |
 | `report` | Forward original content and return findings in `verdict`. |
 | `transform` | Forward validated transformed content. |
 | `block` | Raise or omit the passing output, according to `on_violation`. |
