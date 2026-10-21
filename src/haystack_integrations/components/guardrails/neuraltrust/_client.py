@@ -27,7 +27,7 @@ from .errors import (
 )
 
 _RETRY_STATUSES = frozenset({429, 502, 504})
-_STATUSES = frozenset({"allow", "report", "transform", "ask", "block"})
+_STATUSES = frozenset({"allow", "skip", "report", "transform", "ask", "block"})
 _CORRELATION_ID = re.compile(r"[A-Za-z0-9._:-]{1,256}\Z")
 
 
