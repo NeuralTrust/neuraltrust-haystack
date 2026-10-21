@@ -77,7 +77,7 @@ async def test_default_violation_stops_pipeline(respx_mock, is_async):
 
 
 @pytest.mark.parametrize("is_async", [False, True])
-@pytest.mark.parametrize("status", ["allow", "report", "transform"])
+@pytest.mark.parametrize("status", ["allow", "skip", "report", "transform"])
 async def test_only_evaluated_content_reaches_sink(respx_mock, status, is_async):
     reply = {"status": status}
     if status == "transform":

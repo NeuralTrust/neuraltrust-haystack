@@ -34,6 +34,26 @@ FINDING = {
     "outcome": {"action": "report"},
     "evidence": {"rule": "unit-test"},
 }
+GATE_SKIP = {
+    "source": {
+        "kind": "gate",
+        "gate_name": "Skip internal health checks",
+        "gate_id": "2b9c7e14-58a1-4f3d-b6e2-91d0c4a7f385",
+        "policy_id": "7d1f9a52-3c4e-4b8a-9f21-6a0c5e8d2b17",
+    },
+    "signal": {"type": "gate_skip"},
+    "outcome": {"action": "skip"},
+}
+GATE_REPORT = {
+    "source": {
+        "kind": "gate",
+        "gate_name": "Report internal consumers",
+        "gate_id": "c41e8b2d-7f60-4a95-8d3c-5e2b1a9f0c64",
+        "policy_id": "7d1f9a52-3c4e-4b8a-9f21-6a0c5e8d2b17",
+    },
+    "signal": {"type": "gate_report"},
+    "outcome": {"action": "report"},
+}
 
 
 @pytest.fixture(autouse=True)
@@ -104,6 +124,52 @@ async def test_passing_verdict_preserves_content_and_findings(
     if isinstance(value, list):
         result["messages"][0].meta["nested"]["tags"].append("changed")
         assert value == snapshot
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("on_violation", ["raise", "route"])
+@pytest.mark.parametrize("findings", [[GATE_SKIP], [GATE_REPORT, GATE_SKIP]], ids=["skip", "skip_after_report"])
+async def test_skip_forwards_content_in_both_violation_modes(
+    respx_mock: respx.MockRouter,
+    kind: str,
+    asynchronous: bool,
+    on_violation: str,
+    findings: list[dict[str, Any]],
+) -> None:
+    respx_mock.post(API_URL).respond(
+        200,
+        json={
+            "status": "skip",
+            "findings": findings,
+            "transformed_payload": None,
+            "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+            "request_id": "00f067aa0ba902b7a1b2c3d4e5f60718",
+        },
+    )
+    value = original_input(kind)
+    snapshot = copy.deepcopy(value)
+
+    result = await evaluate(make_guard(kind, on_violation=on_violation), value, asynchronous)
+
+    content_key = "text" if kind == "text" else "messages"
+    assert result[content_key] == snapshot
+    assert result["verdict"] == {
+        "status": "skip",
+        "findings": findings,
+        "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+        "request_id": "00f067aa0ba902b7a1b2c3d4e5f60718",
+    }
+    assert value == snapshot
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("on_violation", ["raise", "route"])
+async def test_unknown_verdict_status_raises(
+    respx_mock: respx.MockRouter, kind: str, asynchronous: bool, on_violation: str
+) -> None:
+    respx_mock.post(API_URL).respond(200, json={"status": "future_status"})
+    with pytest.raises(NeuralTrustInvalidResponseError, match="unsupported verdict status"):
+        await evaluate(make_guard(kind, on_violation=on_violation), original_input(kind), asynchronous)
 
 
 @pytest.mark.asyncio
